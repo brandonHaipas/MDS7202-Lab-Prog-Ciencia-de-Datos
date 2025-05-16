@@ -121,7 +121,6 @@ seed = 88
 #| execution_start: 1686930782578
 #| source_hash: 553ccab0
 # Exploración de datos
-
 df.info()
 ```
 
@@ -152,7 +151,6 @@ df['GenHlth'].value_counts()
 
 ```{python}
 # número de valores únicos para las escalas de salud
-
 health_scales = ['MentHlth', 'PhysHlth', 'GenHlth']
 for i in health_scales:
     print(f"La escala {i} tiene {df[i].nunique()} valores distintos")
@@ -247,6 +245,10 @@ y_pred_baseline = xgb_pipeline.predict(X_test)
 print(f'Evaluación de xgboost sin finetunning\n{classification_report(y_test, y_pred_baseline)}')
 ```
 
+2. *  ¿Es acaso un buen predictor de diabetes? R: Depende. La métrica más crítica para decidir si el modelo es un buen predictor en este contexto es recall, dado que se busca minimizar la cantidad de falsos negativos, pues clasificar a un paciente enfermo como sano es clínicamente grave. No obstante, las métricas de precision, y en consecuencia, f1-score son también relevantes. Dado que el modelo tiene un recall de 0.79 y f1-score de 0.76 para la clase positiva, podría decirse que se acerca a tener buenos resultados. Sin embargo, en el contexto clínico se podría ser más exigente para decir que es un buen predictor, por ejemplo, solicitando un recall mayor a 0.85.
+   * ¿Qué buscan explicar las métricas utilizadas? R: Como ha sido mencionado, precision mide la tasa de predicciones realizadas correctamente, recall mide la proporción de pacientes de una clase que fueron correctamente detectados y f1-score es un promedio armónico entre las otras dos, lo que permite observar un balance entre ambas métricas.
+   * ¿Las métricas utilizadas para medir la predictibilidad le permiten asegurar que su modelo haga una buena elección de las features? R: No directamente, pues son métricas que permiten evaluar el desempeño general del modeo, pero no indican explícitamente la bondad de las features seleccionadas. Para ello, podrían observarse la importancia de las features o la contribución de cada una con SHAP values.
+
 ## 3. Importancia de las features con XGBoost (5 puntos)
 
 <p align="center">
@@ -266,13 +268,11 @@ Tareas:
 #| execution_start: 1686930815998
 #| source_hash: 553ccab0
 # Obtención del clasificador
-
 xgb_clf = xgb_pipeline.named_steps['XGBClassifier']
 ```
 
 ```{python}
 # plot_importance con weight
-
 import xgboost as xgb
 import matplotlib.pyplot as plt
 
@@ -305,6 +305,9 @@ xgb.plot_importance(xgb_clf, max_num_features=17, importance_type="gain")
 plt.title("Feature Importance con importance_type='gain'")
 plt.show()
 ```
+
+2. ¿Los resultados obtenidos con los diferentes métodos son compatibles?, comente sus resultados y a que se debe la igualdad o desigualdad que ve en los resultados. R:  Los resultados obtenidos con cáda método son diferentes, pero es normal ver estas diferencias, dado que cada uno mide la importancia de las features desde un punto de vista distinto. `weight` mide la importancia de la feature según su frecuencia de aparición en el árbol. Así, el BMI o la Edad del paciente son variables con las cuales se decide con mayor frecuencia. `gain` mide cuánto mejora, en promedio, la ganancia del árbol en los splits donde se usa la variable. Con esto, HighBP parece separar mejor los datos en los nodos donde se utiliza, ofreciendo una mayor ganancia. Finalmente,  `cover` mide el coverage promedio (es decir, la cantidad promedio de observaciones que se ven afectadas por los splits de la feature), donde la mayor importanca la obtiene CholCheck.
+3. Finalmente, ¿las importancias obtenidas son suficientes para obtener la interpretabilidad de un modelo que utiliza árboles? ¿Qué debilidad presenta este método? R: Estas importancias por si solas no son suficientes, dado que no permiten tener una visión local de cómo afectan la clasificación de cada observación, así como tampoco permiten entender cómo estas variables afectan a la performance global del modelo.
 
 ## 4. Métodos Agnósticos Globales (10 puntos)
 
@@ -382,6 +385,28 @@ plt.xlabel('Error')
 plt.show()
 ```
 
+4. - ¿Cómo mide la importancia de las features su propuesta? R: La propuesta corresponde al cálculo de _Permutation Feature Importance_, que rompe la relación entre la feature y la variable dependiente al aleatorizar el orden de esta, y permite entender cúanto aumenta el error global del modelo, como una medida de importancia. Así, mientras más disminuye la performance, más importante es la variable.
+   - ¿Qué features tienen un mayor impacto en la salida del modelo?. Comente las 5 primeras, ¿tienen sentido? **DISCLAIMER: El siguiente análisis es realizado en base a nuestro conocimiento médico sobre la diabetes, que, al no tener formación profesional en el tema, puede ser poco preciso.**
+   En orden, estas son:  
+      1. HayAlcoholConsump: La más importante corresponde al consumo de alcohol. El alcohol, al contener azucar, es un potencial factor de riesgo. Probablemente, los pacientes que consumen alcohol tienen mucha más probabilidad de padecer diabetes, luego tiene sentido.
+      2. BMI: El índice de masa corporal puede indicar sobrepeso o malos hábitos alimenticios, luego tiene sentido que sea una variable relevante.
+      3. MentHlth: Enfermedades asociadas a salud mental, como trastornos de ansiedad o similares, pueden estar asociados a desórdenes alimenticios que hagan que los pacientes sean más propensos a padecer diabetes, luego tiene sentido su relevancia.
+      4. Veggies: El consumo de vegetales puede ser indicio de si el paciente tiene una alimentación saludable, lo que valida su importancia para la predicción.
+      5. Fruits: De manera análoga al punto 4, esta variable tiene sentido y probablemente posee menor importancia dado que las frutas, a diferencia de los vegetales, pueden contener mayor cantidad de azúcares.
+   - ¿Cómo cambian sus conclusiones con respecto a las features importances del punto anterior? R: El órden de las variables obtenidas tiene mayor similitud con las del método `cover` de la sección anterior. Sin embargo, el análisis presentado dista considerablemente de los resultados obtenidos previamente, además de que con este método existe mayor certeza de cómo las variables afectan a la performance de modelo.
+   - Nombre y explique 3 ventajas y 3 desventajas del método implementado. 
+   R: 
+   
+      Ventajas:
+      - El método es agnóstico al modelo.
+      - Permite obtener una visión global de las importancias de las features.
+      - Refleja la importancia real de las features sobre la variable dependiente a partir de métricas de desempeño del modelo.
+      
+      Desventajas:
+      - Al realizar permutaciones, puede ser potencialmente costoso computacionalmente.
+      - Es dependiente de la métrica de desempeño utilizada.
+      - Es sensible a variables altamente correlacionadas o redundantes, dado que la permutación de una no afectará al modelo, dado que puede obtener la información necesaria para trabajar a partir de la otra.
+
 ## 5. Métodos Agnósticos Locales (20 puntos)
 
 <p align="center">
@@ -432,6 +457,14 @@ processed_X = subpipeline.transform(X)
 shap_values = explainer(processed_X)
 ```
 
+```{python}
+# Shap values para la primera instancia
+shap_values.values[1,:]
+```
+
+2. ¿Qué representa cada número en su resultado? R: `shap_values` contiene una matriz donde cada número representa la contribución sobre el valor esperado de la salida del modelo si no tuviera información adicional (valor base) para una feature en una observación particular del dataset.
+3. ¿Es posible atribuir un significado a la positividad/negatividad de cada valor? Si, los valores positivos aumentan la probabilidad de clasificar con 1 (luego, clasificar con diabetes) y los negativos aumentan la de clasificar a 0.
+
 ### 5.2 Aporte local (4 puntos)
 
 1. Usando los *shap values* calculados, grafique el **aporte local** de las diferentes variables para las instancias **1**, **9** y **150** (1 punto).
@@ -474,6 +507,14 @@ shap.plots.waterfall(shap_values[idx,:],
                      max_display=14)
 ```
 
+2. Interprete sus resultados y responda:
+
+  - ¿Qué variables afectan de manera positiva/negativa a la probabilidad de poseer diabetes? R: Los gráficos nos permiten observar qué variables afectan positivamente (en rojo) y negativamente (en azul) la predicción. Por ejemplo, para la instancia 1, variables como GenHlth y Age aumentan la probabilidad de tener diabetes, mientras que HighBP y BMI la disminuyen.
+
+  - ¿Existe algún patrón común entre las instancias analizadas? R. Si, existen ciertos patrónes comunes. Por ejemplo, la variable Age afecta positivamente la probabilidad de tener diabetes en los tres casos, mientras que Veggies la disminuye. Por otro lado, pacientes con BMI negativo afectan negativamente la predicción, mientras que los que tienen valor positivo lo afectan positivamente.
+
+  - ¿Es posible generalizar estas conclusiones a todo el dataset? R: No directamente, dado que los SHAP values se interpretan de forma local, luego no es posible generalizar estas conclusiones sin antes observar una mayor cantidad de datos, o un promedio global.
+
 ### 5.3 Aporte global (4 puntos)
 
 Genere ahora una visualización donde se grafique el aporte de cada feature a nivel **global** e interprete sus resultados. ¿Qué diferencias existen con las conclusiones generadas a nivel de instancia?
@@ -487,6 +528,10 @@ Genere ahora una visualización donde se grafique el aporte de cada feature a ni
 #| source_hash: 99e7a96a
 shap.summary_plot(shap_values, processed_X, plot_type="bar")
 ```
+
+R: A nivel de instancia, los shap values muestran el impacto, positivo o negativo, en la predicción. Por otro lado, el aporte a nivel global se obtiene a nivel promedio y como magnitud (es decir, en valor absoluto), luego no permite saber si la variable afecta positiva o negativamente a la predicción.
+
+No obstante, algunas variables relevantes observadas anteriormente vuelven a estar en los primeros lugares, como GenHlth, HighBP y Age.
 
 ### 5.4 Scatter plot (4 puntos)
 
@@ -513,10 +558,16 @@ feature_importance_names[:17]
 
 ```{python}
 predictions = xgb_clf.predict(processed_X)
-
 for name in feature_importance_names[:5]:
     shap.plots.scatter(shap_values[:,name], color=predictions)
 ```
+
+A partir de los scatterplots, se puede concluir que:
+- Para `GenHlth`, los valores más altos están asociados a SHAP values más altos, por lo que afectan positivamente a la predicción. No obstante, la probabilidad de diabetes es algo dispersa, pues tanto el valor más bajo como los dos más altos poseen una gran cantidad de puntos rojos.
+- En `HighBP`, una etiqueta positivia tienen SHAP values más altos, por lo que afecta positivamente a la probabilidad. Sin embargo, la mayor cantidad de predicciones positivas se encuentra entre los SHAP -0.5 y 0.5, y no se aprecia un efecto claro de esta variable en la clasificación.
+- Para BMI, mientras este es más alto tiene una tendencia a SHAP values más altos, salvo valores sobre 5, donde la relación es más dispersa. Un comportamiento similar se observa en las predicciones positivas. Por lo tanto, el BMI afecta positivamente a la predicción.
+- `Age` también tiene una relación creciente con los SHAP values, por lo que afecta positivamente a la predicción. Así también, las predicciones positivas tienden a aumentar con el aumento de la feature.
+- Finalmente, `HighChol` tiene un comportamiento similar al de `HighBP`, por lo que se extiende a las mismas conclusiones.
 
 ### 5.5 Partial Dependence Plot (4 puntos)
 
@@ -582,6 +633,14 @@ shap.partial_dependence_plot(
     shap_values=shap_values[sample_ind:sample_ind+1,:],
 )
 ```
+
+¿Qué relación existe entre la salida promedio del modelo y cada feature analizada? ¿Son estas conclusiones generalizables para todo el conjunto de datos? R:
+Al analizar los gráficos de Partial Dependence Plot para las cinco variables de mayor impacto global, se observa lo siguiente:
+- `GenHlth` y `Age` muestra un efecto marginal positivo sobre la predicción del modelo, similar a lo observado con los scatter plots.
+- `HighBP` y `HighChol` muestran una curva casi plana, luego parecieran casi no tener efecto marginal sobre la predicción, por lo que puede que el modelo no los esté empleando de forma relevante para clasificar. Esto se condice con el comportamiento poco definido identificado en los scatter plots.
+- `BMI` muestra un efecto marginal positivo hasta cierto valor, donde luego se dispersa el comportamiento, nuevamente similar a lo observado en el caso anterior.
+
+Estos resultados si son generalizables, dado que utilizan el conjunto de testing para su construcción, el cual se espera sea fidedigno a la distribución real de los datos.
 
 ## 6. Sistema de Reglas! (10 punto)
 
@@ -671,11 +730,19 @@ print('Precision: %.2f' % explanation.precision) # obtener precision
 print('Coverage: %.2f' % explanation.coverage) # obtener cobertura
 ```
 
+Las tres observaciones analizadas (1000, 3001 y 5751) utilizan principalmente las variables `GenHlth`, `HighChol` y `Age` para la toma de decisión del modelo. Las observaciones 1000 y 5751 reciben una predicción positiva para diabetes, mientras que la 3001 resulta en una predicción negativa, a pesar de que la regla aplicada para las dos últimas es igual. Esto sugiere que el modelo puede estar considerando otros factores adicionales en la predicción final.
+
+Las reglas generadas cubren entre el 6% y el 19% de la población total, lo cual indica una cobertura moderada que permite explicar un segmento importante, pero no la totalidad, del conjunto de datos.
+
+Las reglas tienen sentido, dado que involucran variables que han sido identificadas previamente como relevantes para la predicción. Estos factores están asociados a un mayor riesgo de diabetes, lo que valida la coherencia de las reglas con el conocimiento médico y con el comportamiento del modelo.
+
 # Retrospectiva... (10 puntos)
 
 En base a los diferentes métodos que implementa y ha comentado en este laboratorio, comente qué métodos le permiten entregar mejores conclusiones para la tarea de clasificación de diabetes. Por otro lado, ¿qué métodos son más útiles para el problema del doctor Simi, métodos agnosticos locales o globales?
 
-> Fundamente su Respuesta aquí
+En base al problema de clasificación, los métodos que permiten entregar mejores conclusiones son el uso de SHAP values, tanto a nivel global como local. Por ejemplo, con ellos se puede entender la contribución marginal de cada feature a la clasificación a nivel global, así como también entender las decisiones inviduales tomadas sobre cada observación (paciente). Esto se ve beneficiado de uso de visualizaciones poderosas, como los waterfall plots o los partial dependence plots.
+
+Por otro lado, en el caso del doctor Simi, los métodos más útiles son los locales, dado que permiten explicar, para cada paciente particular, por qué se toma la decisión de clasificarlo con la padecencia de diabetes o no. Esto, en el sentido clínico, es muy relevante, dado que permite asegurarse de que cada paciente está siendo diagnósticado de forma correcta, observando cómo sus características particulares afectan a la decisión del modelo.
 
 <a style='text-decoration:none;line-height:16px;display:flex;color:#5B5B62;padding:10px;justify-content:end;' href='https://deepnote.com?utm_source=created-in-deepnote-cell&projectId=87110296-876e-426f-b91d-aaf681223468' target="_blank">
 <img alt='Created in deepnote.com' style='display:inline;max-height:16px;margin:0px;margin-right:7.5px;' src='data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyB3aWR0aD0iODBweCIgaGVpZ2h0PSI4MHB4IiB2aWV3Qm94PSIwIDAgODAgODAiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+CiAgICA8IS0tIEdlbmVyYXRvcjogU2tldGNoIDU0LjEgKDc2NDkwKSAtIGh0dHBzOi8vc2tldGNoYXBwLmNvbSAtLT4KICAgIDx0aXRsZT5Hcm91cCAzPC90aXRsZT4KICAgIDxkZXNjPkNyZWF0ZWQgd2l0aCBTa2V0Y2guPC9kZXNjPgogICAgPGcgaWQ9IkxhbmRpbmciIHN0cm9rZT0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxIiBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPgogICAgICAgIDxnIGlkPSJBcnRib2FyZCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTEyMzUuMDAwMDAwLCAtNzkuMDAwMDAwKSI+CiAgICAgICAgICAgIDxnIGlkPSJHcm91cC0zIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMjM1LjAwMDAwMCwgNzkuMDAwMDAwKSI+CiAgICAgICAgICAgICAgICA8cG9seWdvbiBpZD0iUGF0aC0yMCIgZmlsbD0iIzAyNjVCNCIgcG9pbnRzPSIyLjM3NjIzNzYyIDgwIDM4LjA0NzY2NjcgODAgNTcuODIxNzgyMiA3My44MDU3NTkyIDU3LjgyMTc4MjIgMzIuNzU5MjczOSAzOS4xNDAyMjc4IDMxLjY4MzE2ODMiPjwvcG9seWdvbj4KICAgICAgICAgICAgICAgIDxwYXRoIGQ9Ik0zNS4wMDc3MTgsODAgQzQyLjkwNjIwMDcsNzYuNDU0OTM1OCA0Ny41NjQ5MTY3LDcxLjU0MjI2NzEgNDguOTgzODY2LDY1LjI2MTk5MzkgQzUxLjExMjI4OTksNTUuODQxNTg0MiA0MS42NzcxNzk1LDQ5LjIxMjIyODQgMjUuNjIzOTg0Niw0OS4yMTIyMjg0IEMyNS40ODQ5Mjg5LDQ5LjEyNjg0NDggMjkuODI2MTI5Niw0My4yODM4MjQ4IDM4LjY0NzU4NjksMzEuNjgzMTY4MyBMNzIuODcxMjg3MSwzMi41NTQ0MjUgTDY1LjI4MDk3Myw2Ny42NzYzNDIxIEw1MS4xMTIyODk5LDc3LjM3NjE0NCBMMzUuMDA3NzE4LDgwIFoiIGlkPSJQYXRoLTIyIiBmaWxsPSIjMDAyODY4Ij48L3BhdGg+CiAgICAgICAgICAgICAgICA8cGF0aCBkPSJNMCwzNy43MzA0NDA1IEwyNy4xMTQ1MzcsMC4yNTcxMTE0MzYgQzYyLjM3MTUxMjMsLTEuOTkwNzE3MDEgODAsMTAuNTAwMzkyNyA4MCwzNy43MzA0NDA1IEM4MCw2NC45NjA0ODgyIDY0Ljc3NjUwMzgsNzkuMDUwMzQxNCAzNC4zMjk1MTEzLDgwIEM0Ny4wNTUzNDg5LDc3LjU2NzA4MDggNTMuNDE4MjY3Nyw3MC4zMTM2MTAzIDUzLjQxODI2NzcsNTguMjM5NTg4NSBDNTMuNDE4MjY3Nyw0MC4xMjg1NTU3IDM2LjMwMzk1NDQsMzcuNzMwNDQwNSAyNS4yMjc0MTcsMzcuNzMwNDQwNSBDMTcuODQzMDU4NiwzNy43MzA0NDA1IDkuNDMzOTE5NjYsMzcuNzMwNDQwNSAwLDM3LjczMDQ0MDUgWiIgaWQ9IlBhdGgtMTkiIGZpbGw9IiMzNzkzRUYiPjwvcGF0aD4KICAgICAgICAgICAgPC9nPgogICAgICAgIDwvZz4KICAgIDwvZz4KPC9zdmc+' > </img>
