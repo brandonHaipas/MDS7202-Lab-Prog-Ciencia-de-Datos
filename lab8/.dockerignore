@@ -1,0 +1,11 @@
+__pycache__
+mlruns
+plots
+models
+img
+*.csv
+*.ipynb
+*.png
+*.json
+optimize.py
+!models/exp_461236034205691343/model.pkl
