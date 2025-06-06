@@ -10,6 +10,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn import set_config
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
+import gradio as gr
 
 set_config(transform_output="pandas")
 
@@ -106,3 +107,27 @@ def preprocess_and_train(**kwargs):
 
     print(f"Accuracy for positive class: {accuracy:.2f}")
     print(f"F1-Score for positive class: {f1_score:.2f}")
+
+def predict(file,model_path):
+
+    pipeline = joblib.load(model_path)
+    input_data = pd.read_json(file)
+    predictions = pipeline.predict(input_data)
+    print(f'La prediccion es: {predictions}')
+    labels = ["No contratado" if pred == 0 else "Contratado" for pred in predictions]
+
+    return {'Predicción': labels[0]}
+
+
+def gradio_interface(**kwargs):
+    dir = f"{kwargs.get('date')}"
+    model_path= f"{dir}/models/pipeline.joblib" #Completar con la ruta del modelo entrenado
+
+    interface = gr.Interface(
+        fn=lambda file: predict(file, model_path),
+        inputs=gr.File(label="Sube un archivo JSON"),
+        outputs="json",
+        title="Hiring Decision Prediction",
+        description="Sube un archivo JSON con las características de entrada para predecir si Vale será contratada o no."
+    )
+    interface.launch(share=True)
