@@ -1,9 +1,19 @@
 import os
+import joblib
 from datetime import date
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
+from sklearn.pipeline import Pipeline
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn import set_config
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
 
-# misma semilla para slit y para entrenamiento
+set_config(transform_output="pandas")
+
+# misma semilla para slpit y para entrenamiento
 seed = 123
 
 def create_folders(**kwargs):
@@ -34,7 +44,65 @@ def split_data(**kwargs):
     train_df.to_csv(f"{dir}/splits/train.csv")
     test_df.to_csv(f"{dir}/test.csv")
 
+class TypeTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, type):
+        self.type_to_transform=type
+        return self
+    
+    def fit(self, X, y =None):
+        return self
+    
+    def transform(self, X):
+        return X.astype(self.type_to_transform)
+
 def preprocess_and_train(**kwargs):
     dir = f"{kwargs.get('date')}"
     train_df = pd.read_csv(f"{dir}/splits/train.csv")
     test_df = pd.read_csv(f"{dir}/splits/test.csv")
+
+    # basandose en data_1_report, se puede concluir que las unicas variables que necesitan one_hot_encoding son EducationLevel RecruitmentStrategy.
+    # el resto de columnas "categoricas" solo necesita un cambio de tipos.
+    # para el resto de variables se podría aplicar un scaler, dado que no hay un mayor desbalance se puede usar directamente un minmax scaler.
+
+    encode_cols = ["EducationLevel", "RecruitmentStrategy"]
+    astype_cols = ["PreviousCompanies"]
+    minmax_cols = ["Age","ExperienceYears","PreviousCompanies", "DistanceFromCompany", "InterviewScore", "SkillScore"]
+
+    encoder = OneHotEncoder()
+    scaler = MinMaxScaler(feature_range=(0,1))
+    type_transformer = TypeTransformer(int)
+
+    encoding_transformer = ColumnTransformer([
+        ("One Hot Encoding", encoder, encode_cols),
+        ("Type transformer", type_transformer, astype_cols)
+    ],
+    remainder="passthrough")
+
+    scaler_transformer = ColumnTransformer([
+        ("MinMax Scaler", scaler, minmax_cols)
+    ], 
+    remainder = "passthrough")
+    
+    rf = RandomForestClassifier()
+
+    pipeline = Pipeline([
+        ("Encoder", encoding_transformer),
+        ("Scaler", scaler_transformer),
+        ("Random Forest Classifier", rf)
+    ])
+
+    X = train_df.drop(columns=["HiringDecision"])
+    y = train_df["HiringDecision"]
+    pipeline.fit(X,y)
+
+    joblib.dump(pipeline, f"{dir}/models/pipeline.joblib")
+    X_test = test_df.drop(columns=["HiringDecision"])
+    y_test = test_df["HiringDecision"]
+    predictions = pipeline.transform(X_test)
+
+    report = classification_report(y_true=y_test, y_pred=predictions)
+    accuracy = report["1"]["accuracy"]
+    f1_score = report["1"]["f1-score"]
+
+    print(f"Accuracy for positive class: {accuracy:.2f}")
+    print(f"F1-Score for positive class: {f1_score:.2f}")
