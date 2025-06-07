@@ -1,6 +1,5 @@
 import os
 import joblib
-from datetime import date
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
@@ -19,11 +18,10 @@ seed = 123
 
 def create_folders(**kwargs):
     date = kwargs.get("date")
-    folder_name = f'{date.today()}'
-    os.mkdir(folder_name)
-    os.mkdir(f"{folder_name}/raw")
-    os.mkdir(f"{folder_name}/splits")
-    os.mkdir(f"{folder_name}/models")
+    os.mkdir(date)
+    os.mkdir(f"{date}/raw")
+    os.mkdir(f"{date}/splits")
+    os.mkdir(f"{date}/models")
     return
 
 def split_data(**kwargs):
