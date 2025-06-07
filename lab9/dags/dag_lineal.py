@@ -1,11 +1,9 @@
 from datetime import datetime, date
 
 from airflow import DAG
-
 from airflow.operators.python import EmptyOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
-from airflow.utils.dates import days_ago
 
 from hiring_functions import create_folders, split_data, preprocess_and_train, gradio_interface
 
