@@ -15,15 +15,15 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala Apache Airflow
-RUN pip install "apache-airflow[celery]==3.0.1" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.0.1/constraints-3.10.txt"
+RUN pip install "apache-airflow==2.5.0" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.5.0/constraints-3.10.txt"
 RUN pip install scikit-learn
 RUN pip install pandas
 RUN pip install numpy
 RUN pip install joblib
 RUN pip install gradio
 
-# Chequea si la base de datos de Airflow es accesible
-RUN airflow db check
+# Inicializa la base de datos de Airflow
+RUN airflow db init
 
 # Expone el puerto 8080 para el servidor web de Airflow
 EXPOSE 8080
