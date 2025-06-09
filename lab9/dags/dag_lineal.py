@@ -1,7 +1,7 @@
 from datetime import datetime, date
 
 from airflow import DAG
-from airflow.operators.python import EmptyOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
 
@@ -12,7 +12,6 @@ with DAG(
     description="A lineal dag",
     start_date = datetime(2024,10,1),
     catchup=False,
-    default_args = {"date": str(date.today())},
     schedule=None
 ) as dag:
     
@@ -25,7 +24,7 @@ with DAG(
 
     download_dataset_task = BashOperator(
         task_id='Download_dataset',
-        bash_command='curl -o ./{{ dag.default_args.date }}/raw/data_1.csv https://gitlab.com/eduardomoyab/laboratorio-13/-/raw/main/files/data_1.csv'
+        bash_command='curl -o $AIRFLOW_HOME/{{ ds }}/raw/data_1.csv https://gitlab.com/eduardomoyab/laboratorio-13/-/raw/main/files/data_1.csv'
     )
 
     holdout_task = PythonOperator(
