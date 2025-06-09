@@ -7,6 +7,9 @@ WORKDIR /root/airflow
 # Establece la variable de entorno AIRFLOW_HOME
 ENV AIRFLOW_HOME=/root/airflow
 
+# Desactiva los DAGs de ejemplo
+ENV AIRFLOW__CORE__LOAD_EXAMPLES=False
+
 # Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     libgomp1 \
