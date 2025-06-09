@@ -1,5 +1,4 @@
 import os
-import json
 import joblib
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -7,14 +6,11 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
 from sklearn.pipeline import Pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn import set_config
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 import gradio as gr
 
-set_config(transform_output="pandas")
-
-# misma semilla para slpit y para entrenamiento
+# Seed Aleatoria
 seed = 123
 
 # Variable home
@@ -56,6 +52,10 @@ class TypeTransformer(BaseEstimator, TransformerMixin):
     
     def transform(self, X):
         return X.astype(self.type_to_transform)
+    
+    def set_output(self, transform=None):
+        self._transform_output = transform
+        return self
 
 def preprocess_and_train(**kwargs):
     dir = f"{kwargs.get('ds')}"
@@ -72,11 +72,18 @@ def preprocess_and_train(**kwargs):
 
     encoder = OneHotEncoder(sparse_output=False)
     scaler = MinMaxScaler(feature_range=(0,1))
-    type_transformer = TypeTransformer(type_to_transform=int)
+    type_transformer_int = TypeTransformer(type_to_transform=int)
+    type_transformer_str = TypeTransformer(type_to_transform=str)
 
-    encoding_transformer = ColumnTransformer([
+    type_transformer = ColumnTransformer([
+        ("Type Transformer Categorical", type_transformer_str, encode_cols),
+        ("Type Transformer Numerical", type_transformer_int, astype_cols),
+    ],
+    remainder="passthrough",
+    verbose_feature_names_out=False)
+
+    encoder_transformer = ColumnTransformer([
         ("One Hot Encoding", encoder, encode_cols),
-        ("Type transformer", type_transformer, astype_cols)
     ],
     remainder="passthrough",
     verbose_feature_names_out=False)
@@ -90,10 +97,11 @@ def preprocess_and_train(**kwargs):
     rf = RandomForestClassifier()
 
     pipeline = Pipeline([
-        ("Encoder", encoding_transformer),
+        ("Type", type_transformer),
+        ("Encoder", encoder_transformer),
         ("Scaler", scaler_transformer),
         ("Random Forest Classifier", rf)
-    ])
+    ]).set_output(transform="pandas")
 
     X = train_df.drop(columns=["HiringDecision"])
     y = train_df["HiringDecision"]
@@ -112,7 +120,6 @@ def preprocess_and_train(**kwargs):
     print(f"F1-Score for positive class: {f1_score:.2f}")
 
 def predict(file, model_path):
-
     pipeline = joblib.load(model_path)
     input_data = pd.read_json(file)
     predictions = pipeline.predict(input_data)
@@ -120,7 +127,6 @@ def predict(file, model_path):
     labels = ["No contratado" if pred == 0 else "Contratado" for pred in predictions]
 
     return {'Predicción': labels[0]}
-
 
 def gradio_interface(**kwargs):
     dir = f"{kwargs.get('ds')}"
