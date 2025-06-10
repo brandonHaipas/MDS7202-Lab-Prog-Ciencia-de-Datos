@@ -75,9 +75,11 @@ class TypeTransformer(BaseEstimator, TransformerMixin):
         self._transform_output = transform
         return self
 
-def train_model(model,model_name, **kwargs):
+def train_model(model, model_name, **kwargs):
     dir = f"{kwargs.get('ds')}"
+    ti = kwargs['ti']
     train_df = pd.read_csv(f"{home_dir}/{dir}/splits/train.csv")
+    test_df = pd.read_csv(f"{home_dir}/{dir}/splits/test.csv")
 
     # basandose en data_1_report, se puede concluir que las unicas variables que necesitan one_hot_encoding son EducationLevel RecruitmentStrategy.
     # el resto de columnas "categoricas" solo necesita un cambio de tipos.
@@ -118,39 +120,37 @@ def train_model(model,model_name, **kwargs):
         ("Classifier", model)
     ]).set_output(transform="pandas")
 
-    X = train_df.drop(columns=["HiringDecision"])
-    y = train_df["HiringDecision"]
-    pipeline.fit(X, y)
-
-    joblib.dump(pipeline, f"{home_dir}/{dir}/models/{model_name}_pipeline.joblib")
-
-# lee todos los archivos joblib de la carpeta.
-def evaluate_models(**kwargs):
-    dir = f"{kwargs.get('ds')}"
-    test_df = pd.read_csv(f"{home_dir}/{dir}/splits/test.csv")
-
+    X_train = train_df.drop(columns=["HiringDecision"])
+    y_train = train_df["HiringDecision"]
     X_test = test_df.drop(columns=["HiringDecision"])
     y_test = test_df["HiringDecision"]
-    file_pattern = os.path.join(f"{home_dir}/{dir}/models/", "*.joblib")
-    files = glob.glob(file_pattern)
 
-    if not files:
-        raise Exception("No joblib files in folder.")
+    pipeline.fit(X_train, y_train)
+    y_pred = pipeline.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
 
-    best = None
-    best_score = 0
-    best_name = ""
-    for file_name in files:
-        pipeline = joblib.load(file_name)
-        predictions = pipeline.predict(X_test)
-        score = accuracy_score(y_true=y_test, y_pred=predictions)
-        if score > best_score:
-            best_score = score
-            best = pipeline
-            best_name = file_name.removeprefix(f"{home_dir}/{dir}/models/").removesuffix("_pipeline.joblib")
-    
-    joblib.dump(pipeline, f"{home_dir}/{dir}/models/best_pipeline.joblib")
+    model_path = f"{home_dir}/{dir}/models/{model_name}_pipeline.joblib"
+    joblib.dump(pipeline, model_path)
+    ti.xcom_push(key=f"{model_name}_model", value={'model_path': model_path, 'accuracy': accuracy, 'model_name': model_name})
 
-    print(f"The best model is {best_name} with an accuracy of {best_score:.2f}!")
+def evaluate_models(**kwargs):
+    ti = kwargs['ti']
+
+    models = {
+        'rf': ti.xcom_pull(key='rf_model', task_ids='Training_rf'),
+        'xgb': ti.xcom_pull(key='xgb_model', task_ids='Training_xgb'),
+        'et': ti.xcom_pull(key='et_model', task_ids='Training_et')
+    }
+
+    model_scores = {
+        'rf': models['rf']['accuracy'],
+        'xgb': models['xgb']['accuracy'],
+        'et': models['et']['accuracy'],
+    }
+
+    best_model_key = max(model_scores, key=model_scores.get)
+    best_model_dict = models[best_model_key]
+
+    print(f"The best model is {best_model_dict['model_name']} with an accuracy of {best_model_dict['accuracy']:.2f}!")
 
 
