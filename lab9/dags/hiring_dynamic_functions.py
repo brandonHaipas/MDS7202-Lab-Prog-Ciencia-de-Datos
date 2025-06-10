@@ -134,6 +134,7 @@ def train_model(model, model_name, **kwargs):
     ti.xcom_push(key=f"{model_name}_model", value={'model_path': model_path, 'accuracy': accuracy, 'model_name': model_name})
 
 def evaluate_models(**kwargs):
+    dir = f"{kwargs.get('ds')}"
     ti = kwargs['ti']
 
     models = {
@@ -150,7 +151,9 @@ def evaluate_models(**kwargs):
 
     best_model_key = max(model_scores, key=model_scores.get)
     best_model_dict = models[best_model_key]
+    best_model = joblib.load(best_model_dict['model_path'])
 
+    joblib.dump(best_model, f"{home_dir}/{dir}/models/best_pipeline.joblib")
     print(f"The best model is {best_model_dict['model_name']} with an accuracy of {best_model_dict['accuracy']:.2f}!")
 
 
