@@ -126,12 +126,11 @@ def train_model(model,model_name, **kwargs):
 
 # lee todos los archivos joblib de la carpeta.
 def evaluate_models(**kwargs):
+    dir = f"{kwargs.get('ds')}"
     test_df = pd.read_csv(f"{home_dir}/{dir}/splits/test.csv")
 
     X_test = test_df.drop(columns=["HiringDecision"])
     y_test = test_df["HiringDecision"]
-
-    dir = f"{kwargs.get('ds')}"
     file_pattern = os.path.join(f"{home_dir}/{dir}/models/", "*.joblib")
     files = glob.glob(file_pattern)
 

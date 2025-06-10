@@ -5,14 +5,13 @@ from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.operators.bash import BashOperator
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 import xgboost as xgb
-import lightgmb as lgb
 
 from hiring_dynamic_functions import create_folders, load_and_merge, split_data, train_model, evaluate_models
 
 xgb_clf = xgb.XGBClassifier()
-lightgbm_clf = lgb.LGBMClassifier()
+xt_clf = ExtraTreesClassifier()
 
 dag =  DAG(
     dag_id = "hiring_dynamic",
@@ -55,10 +54,16 @@ download_dataset_1_and_2_task = BashOperator(
     dag=dag
 )
 
+load_and_merge_task = PythonOperator(
+    task_id = "Load_and_merge",
+    python_callable=load_and_merge,
+    trigger_rule ='one_success',
+    dag=dag
+)
+
 holdout_task = PythonOperator(
     task_id="Holdout",
     python_callable= split_data,
-    trigger_rule='one_success',
     dag=dag
 )
 
@@ -76,10 +81,10 @@ train_xgb_task = PythonOperator(
     dag= dag
 )
 
-train_lightgbm_task = PythonOperator(
-    task_id='Training_lightgbm',
+train_extratree_task = PythonOperator(
+    task_id='Training_extratree',
     python_callable = train_model,
-    op_kwargs = {"model_name": "lgbm", "model": lightgbm_clf},
+    op_kwargs = {"model_name": "lgbm", "model": xt_clf},
     dag = dag
 )
 
@@ -92,6 +97,6 @@ evaluate_task = PythonOperator(
 # pipeline definition
 start_task >> folder_task >> date_branching_task
 date_branching_task >> [download_dataset_1_task, download_dataset_1_and_2_task]
-download_dataset_1_task >> holdout_task
-download_dataset_1_and_2_task >> holdout_task
-holdout_task >> [train_rf_task, train_xgb_task, train_lightgbm_task] >> evaluate_task
+download_dataset_1_task >> load_and_merge_task
+download_dataset_1_and_2_task >> load_and_merge_task
+load_and_merge_task >> holdout_task >> [train_rf_task, train_xgb_task, train_extratree_task] >> evaluate_task
