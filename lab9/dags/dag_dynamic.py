@@ -1,0 +1,97 @@
+from datetime import datetime, date
+
+from airflow import DAG
+from airflow.operators.empty import EmptyOperator
+from airflow.operators.python import PythonOperator
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.bash import BashOperator
+from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb
+import lightgmb as lgb
+
+from hiring_dynamic_functions import create_folders, load_and_merge, split_data, train_model, evaluate_models
+
+xgb_clf = xgb.XGBClassifier()
+lightgbm_clf = lgb.LGBMClassifier()
+
+dag =  DAG(
+    dag_id = "hiring_dynamic",
+    description="A dynamic dag",
+    start_date = datetime(2024,10,1),
+    catchup=True,
+    schedule_interval='0 15 5 * *'
+) 
+start_task = EmptyOperator(task_id="Starting_the_process", retries =2)
+
+folder_task = PythonOperator(
+    task_id="Creating_folders",
+    python_callable = create_folders,
+    dag=dag
+)
+def branch_by_date(**kwargs):
+    execution_date = kwargs['logical_date'].date()
+    threshold_date = date(2024, 11, 1)
+
+    if execution_date < threshold_date:
+        return 'Download_dataset_1'
+    else:
+        return 'Download_both_datasets'
+
+date_branching_task = BranchPythonOperator(
+    task_id= "Date_branching",
+    python_callable=branch_by_date,
+    dag=dag
+)
+
+download_dataset_1_task = BashOperator(
+    task_id='Download_dataset_1',
+    bash_command='curl -o $AIRFLOW_HOME/{{ ds }}/raw/data_1.csv https://gitlab.com/eduardomoyab/laboratorio-13/-/raw/main/files/data_1.csv',
+    dag=dag
+)
+
+download_dataset_1_and_2_task = BashOperator(
+    task_id = 'Download_both_datasets',
+    bash_command='curl -o $AIRFLOW_HOME/{{ ds }}/raw/data_1.csv https://gitlab.com/eduardomoyab/laboratorio-13/-/raw/main/files/data_1.csv -o $AIRFLOW_HOME/{{ ds }}/raw/data_2.csv https://gitlab.com/eduardomoyab/laboratorio-13/-/raw/main/files/data_2.csv',
+    dag=dag
+)
+
+holdout_task = PythonOperator(
+    task_id="Holdout",
+    python_callable= split_data,
+    trigger_rule='one_success',
+    dag=dag
+)
+
+train_rf_task = PythonOperator(
+    task_id="Training_rf",
+    python_callable = train_model,
+    op_kwargs = {"model_name": "rf", "model": RandomForestClassifier()},
+    dag = dag
+)
+
+train_xgb_task = PythonOperator(
+    task_id='Training_xgb',
+    python_callable = train_model,
+    op_kwargs = {"model_name": "xgb", "model": xgb_clf},
+    dag= dag
+)
+
+train_lightgbm_task = PythonOperator(
+    task_id='Training_lightgbm',
+    python_callable = train_model,
+    op_kwargs = {"model_name": "lgbm", "model": lightgbm_clf},
+    dag = dag
+)
+
+evaluate_task = PythonOperator(
+    task_id='Evaluate_models',
+    python_callable = evaluate_models,
+    dag=dag
+)
+
+# pipeline definition
+start_task >> folder_task >> date_branching_task
+date_branching_task >> [download_dataset_1_task, download_dataset_1_and_2_task]
+download_dataset_1_task >> holdout_task
+download_dataset_1_and_2_task >> holdout_task
+holdout_task >> [train_rf_task, train_xgb_task, train_lightgbm_task] >> evaluate_task

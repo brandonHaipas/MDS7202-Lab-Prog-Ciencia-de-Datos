@@ -24,7 +24,8 @@ RUN pip install pandas
 RUN pip install numpy
 RUN pip install joblib
 RUN pip install gradio
-
+RUN pip install lightgbm
+RUN pip install xgboost
 # Inicializa la base de datos de Airflow
 RUN airflow db migrate
 

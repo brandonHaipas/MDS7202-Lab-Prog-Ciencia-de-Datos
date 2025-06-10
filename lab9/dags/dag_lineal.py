@@ -15,36 +15,31 @@ with DAG(
     schedule=None
 ) as dag:
     
-    marker_task = EmptyOperator(task_id="Starting_the_processd", retries =2)
+    marker_task = EmptyOperator(task_id="Starting_the_process", retries =2)
 
     folder_task = PythonOperator(
         task_id="Creating_folders",
-        python_callable = create_folders,
-        dag=dag
+        python_callable = create_folders
     )
 
     download_dataset_task = BashOperator(
         task_id='Download_dataset',
-        bash_command='curl -o $AIRFLOW_HOME/{{ ds }}/raw/data_1.csv https://gitlab.com/eduardomoyab/laboratorio-13/-/raw/main/files/data_1.csv',
-        dag=dag
+        bash_command='curl -o $AIRFLOW_HOME/{{ ds }}/raw/data_1.csv https://gitlab.com/eduardomoyab/laboratorio-13/-/raw/main/files/data_1.csv'
     )
 
     holdout_task = PythonOperator(
         task_id="Holdout",
-        python_callable= split_data,
-        dag=dag
+        python_callable= split_data
     )
 
     preprocess_and_train_task = PythonOperator(
         task_id="Preprocess_and_train",
-        python_callable=preprocess_and_train,
-        dag=dag
+        python_callable=preprocess_and_train
     )
 
     gradio_gui_task = PythonOperator(
         task_id="Gradio_GUI",
-        python_callable=gradio_interface,
-        dag=dag
+        python_callable=gradio_interface
     )
 
     # pipeline definition

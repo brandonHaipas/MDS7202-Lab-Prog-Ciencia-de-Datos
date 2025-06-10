@@ -28,9 +28,17 @@ def create_folders(**kwargs):
 def load_and_merge(**kwargs):
     dir = f"{kwargs.get('ds')}"
     df_1 = pd.read_csv(f"{home_dir}/{dir}/raw/data_1.csv")
-    df_2 = pd.read_csv(f"{home_dir}/{dir}/raw/data_2.csv")
-    df_2 = df_2[df_1.columns.to_list()] # para asegurarme de que las columnas esten en el mismo orden
-    new_df = pd.concat([df_1, df_2], ignore_index=True)
+    df_2 = None
+    new_df = None
+    try:
+        df_2 = pd.read_csv(f"{home_dir}/{dir}/raw/data_2.csv")
+    except FileNotFoundError:
+        print("No data_2.csv file found, proceeding without it")
+    if df_2 is None:
+        new_df = df_1
+    else:
+        df_2 = df_2[df_1.columns.to_list()] # mismo orden de columnas
+        new_df = pd.concat([df_1, df_2], ignore_index=True)
     new_df.to_csv(f"{home_dir}/{dir}/preprocessed/prep_data.csv")
     return
 
@@ -143,7 +151,7 @@ def evaluate_models(**kwargs):
             best_name = file_name.removeprefix(f"{home_dir}/{dir}/models/").removesuffix("_pipeline.joblib")
     
     joblib.dump(pipeline, f"{home_dir}/{dir}/models/best_pipeline.joblib")
-    
+
     print(f"The best model is {best_name} with an accuracy of {best_score:.2f}!")
 
 
