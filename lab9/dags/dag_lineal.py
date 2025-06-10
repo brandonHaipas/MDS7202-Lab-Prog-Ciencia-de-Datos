@@ -19,27 +19,32 @@ with DAG(
 
     folder_task = PythonOperator(
         task_id="Creating_folders",
-        python_callable = create_folders
+        python_callable = create_folders,
+        dag=dag
     )
 
     download_dataset_task = BashOperator(
         task_id='Download_dataset',
-        bash_command='curl -o $AIRFLOW_HOME/{{ ds }}/raw/data_1.csv https://gitlab.com/eduardomoyab/laboratorio-13/-/raw/main/files/data_1.csv'
+        bash_command='curl -o $AIRFLOW_HOME/{{ ds }}/raw/data_1.csv https://gitlab.com/eduardomoyab/laboratorio-13/-/raw/main/files/data_1.csv',
+        dag=dag
     )
 
     holdout_task = PythonOperator(
         task_id="Holdout",
-        python_callable= split_data
+        python_callable= split_data,
+        dag=dag
     )
 
     preprocess_and_train_task = PythonOperator(
         task_id="Preprocess_and_train",
-        python_callable=preprocess_and_train
+        python_callable=preprocess_and_train,
+        dag=dag
     )
 
     gradio_gui_task = PythonOperator(
         task_id="Gradio_GUI",
-        python_callable=gradio_interface
+        python_callable=gradio_interface,
+        dag=dag
     )
 
     # pipeline definition
