@@ -8,8 +8,7 @@ from airflow.operators.bash import BashOperator
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from xgboost import XGBClassifier
 
-from hiring_dynamic_functions import create_folders, load_and_merge, split_data, train_model, evaluate_models
-
+from hiring_dynamic_functions import create_folders, load_and_merge, split_data, train_model, evaluate_models, seed
 
 dag =  DAG(
     dag_id = "hiring_dynamic",
@@ -79,7 +78,7 @@ holdout_task = PythonOperator(
 train_rf_task = PythonOperator(
     task_id="Training_rf",
     python_callable = train_model,
-    op_kwargs = {"model_name": "rf", "model": RandomForestClassifier()},
+    op_kwargs = {"model_name": "rf", "model": RandomForestClassifier(random_state = seed)},
     dag = dag
 )
 
@@ -87,7 +86,7 @@ train_rf_task = PythonOperator(
 train_xgb_task = PythonOperator(
     task_id='Training_xgb',
     python_callable = train_model,
-    op_kwargs = {"model_name": "xgb", "model": XGBClassifier()},
+    op_kwargs = {"model_name": "xgb", "model": XGBClassifier(random_state =seed)},
     dag= dag
 )
 
@@ -95,7 +94,7 @@ train_xgb_task = PythonOperator(
 train_et_task = PythonOperator(
     task_id='Training_et',
     python_callable = train_model,
-    op_kwargs = {"model_name": "et", "model": ExtraTreesClassifier()},
+    op_kwargs = {"model_name": "et", "model": ExtraTreesClassifier(random_state = seed)},
     dag = dag
 )
 

@@ -1,5 +1,4 @@
 import os
-import glob
 import joblib
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -79,7 +78,6 @@ def train_model(model, model_name, **kwargs):
     dir = f"{kwargs.get('ds')}"
     ti = kwargs['ti']
     train_df = pd.read_csv(f"{home_dir}/{dir}/splits/train.csv")
-    test_df = pd.read_csv(f"{home_dir}/{dir}/splits/test.csv")
 
     # basandose en data_1_report, se puede concluir que las unicas variables que necesitan one_hot_encoding son EducationLevel RecruitmentStrategy.
     # el resto de columnas "categoricas" solo necesita un cambio de tipos.
@@ -122,20 +120,20 @@ def train_model(model, model_name, **kwargs):
 
     X_train = train_df.drop(columns=["HiringDecision"])
     y_train = train_df["HiringDecision"]
-    X_test = test_df.drop(columns=["HiringDecision"])
-    y_test = test_df["HiringDecision"]
 
     pipeline.fit(X_train, y_train)
-    y_pred = pipeline.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
 
     model_path = f"{home_dir}/{dir}/models/{model_name}_pipeline.joblib"
     joblib.dump(pipeline, model_path)
-    ti.xcom_push(key=f"{model_name}_model", value={'model_path': model_path, 'accuracy': accuracy, 'model_name': model_name})
+    ti.xcom_push(key=f"{model_name}_model", value={'model_path': model_path, 'model_name': model_name})
 
 def evaluate_models(**kwargs):
     dir = f"{kwargs.get('ds')}"
     ti = kwargs['ti']
+
+    test_df = pd.read_csv(f"{home_dir}/{dir}/splits/test.csv")
+    X_test = test_df.drop(columns=["HiringDecision"])
+    y_test = test_df["HiringDecision"]
 
     models = {
         'rf': ti.xcom_pull(key='rf_model', task_ids='Training_rf'),
@@ -143,17 +141,31 @@ def evaluate_models(**kwargs):
         'et': ti.xcom_pull(key='et_model', task_ids='Training_et')
     }
 
-    model_scores = {
-        'rf': models['rf']['accuracy'],
-        'xgb': models['xgb']['accuracy'],
-        'et': models['et']['accuracy'],
+    model_paths = {
+        'rf': models['rf']['model_path'],
+        'xgb': models['xgb']['model_path'],
+        'et': models['et']['model_path'],
     }
 
-    best_model_key = max(model_scores, key=model_scores.get)
-    best_model_dict = models[best_model_key]
-    best_model = joblib.load(best_model_dict['model_path'])
+    best_score = 0
+    best_name = ""
+    best = None
+    accuracy_dict={}
+    for key in model_paths.keys():
+        model_path = model_paths[key]
+        pipeline = joblib.load(model_path)
+        predictions = pipeline.predict(X_test)
+        score = accuracy_score(y_true=y_test, y_pred=predictions)
+        accuracy_dict[key]=score
+        if score > best_score:
+            best_score = score
+            best_name = key
+            best = pipeline
+    
+    for key in accuracy_dict.keys():
+        ti.xcom_push(key=f"{key}_accuracy", value={'model_accuracy': accuracy_dict[key]})
 
-    joblib.dump(best_model, f"{home_dir}/{dir}/models/best_pipeline.joblib")
-    print(f"The best model is {best_model_dict['model_name']} with an accuracy of {best_model_dict['accuracy']:.2f}!")
+    joblib.dump(best, f"{home_dir}/{dir}/models/best_pipeline.joblib")
+    print(f"The best model is {best_name} with an accuracy of {accuracy_dict[best_name]:.2f}!")
 
 
